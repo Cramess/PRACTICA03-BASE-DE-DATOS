@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Agenda de Contactos</title>
+  <style>
+    body { font-family: Arial; padding: 1em; max-width: 700px; margin: auto; }
+    input, button { margin: 0.5em 0; display: block; width: 100%; padding: 8px; }
+    table { width: 100%; margin-top: 1em; border-collapse: collapse; }
+    th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
+    th { background: #f0f0f0; }
+  </style>
+</head>
+
+
+<body>
+  <h2>Agenda de Contactos</h2>
+  <h3>Crear / Editar Contacto</h3>
+  <form id="createForm">
+    <input type="text" id="nombre" placeholder="Nombre" required />
+    <input type="text" id="telefono" placeholder="Teléfono (único)" required />
+    <input type="email" id="email" placeholder="Email (opcional)" />
+    <input type="text" id="direccion" placeholder="Dirección (opcional)" />
+    <input type="date" id="fechaNacimiento" placeholder="Fecha de nacimiento" />
+    <button type="submit">Crear</button>
+    <button type="button" id="cancelarBtn" style="display: none;">Cancelar edición</button>
+  </form>
+
+  <h3>Buscar Contactos</h3>
+  <input type="text" id="busqueda" placeholder="Buscar por nombre o email" />
+
+  <h3>Lista de Contactos</h3>
+  <table id="tablaContactos">
+    <thead>
+      <tr>
+        <th>Nombre</th>
+        <th>Teléfono</th>
+        <th>Email</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    const API = 'http://localhost:3000/api/contactos';
+    const tabla = document.querySelector('#tablaContactos tbody');
+    const busqueda = document.getElementById('busqueda');
+
+    let modoEdicion = false;
+    let idEditar = null;
+
+    async function cargarContactos(filtro = '') {
+      const res = await fetch(API + (filtro ? `?q=${filtro}` : ''));
+      const data = await res.json();
+      tabla.innerHTML = '';
+      data.forEach(contacto => {
+        tabla.innerHTML += `
+          <tr>
+            <td>${contacto.nombre}</td>
+            <td>${contacto.telefono}</td>
+            <td>${contacto.email || ''}</td>
+            <td>
+              <button onclick="editar('${contacto._id}')">✏️</button>
+              <button onclick="eliminar('${contacto._id}')">🗑️</button>
+            </td>
+          </tr>
+        `;
+      });
+    }
+
+    document.getElementById('createForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const contacto = {
+        nombre: document.getElementById('nombre').value,
+        telefono: document.getElementById('telefono').value,
+        email: document.getElementById('email').value,
+        direccion: document.getElementById('direccion').value,
+        fechaNacimiento: document.getElementById('fechaNacimiento').value
+      };
+
+      let res;
+      if (modoEdicion) {
+        res = await fetch(`${API}/${idEditar}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(contacto)
+        });
+      } else {
+        res = await fetch(API, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(contacto)
+        });
+      }
+
+      if (res.ok) {
+        alert(modoEdicion ? 'Contacto actualizado' : 'Contacto creado');
+        document.getElementById('createForm').reset();
+        document.querySelector('#createForm button').textContent = 'Crear';
+        document.getElementById('cancelarBtn').style.display = 'none';
+        modoEdicion = false;
+        idEditar = null;
+        cargarContactos();
+      } else {
+        const err = await res.json();
+        alert('Error: ' + err.message);
+      }
+    });
+
+    async function editar(id) {
+      const res = await fetch(`${API}/${id}`);
+      const contacto = await res.json();
+
+      document.getElementById('nombre').value = contacto.nombre;
+      document.getElementById('telefono').value = contacto.telefono;
+      document.getElementById('email').value = contacto.email || '';
+      document.getElementById('direccion').value = contacto.direccion || '';
+      document.getElementById('fechaNacimiento').value = contacto.fechaNacimiento ? contacto.fechaNacimiento.split('T')[0] : '';
+
+      modoEdicion = true;
+      idEditar = id;
+      document.querySelector('#createForm button').textContent = 'Actualizar';
+      document.getElementById('cancelarBtn').style.display = 'block';
+    }
+
+    document.getElementById('cancelarBtn').addEventListener('click', () => {
+      modoEdicion = false;
+      idEditar = null;
+      document.getElementById('createForm').reset();
+      document.querySelector('#createForm button').textContent = 'Crear';
+      document.getElementById('cancelarBtn').style.display = 'none';
+    });
+
+    busqueda.addEventListener('input', () => {
+      cargarContactos(busqueda.value);
+    });
+
+    async function eliminar(id) {
+      if (!confirm('¿Eliminar este contacto?')) return;
+      const res = await fetch(`${API}/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        alert('Eliminado');
+        cargarContactos();
+      }
+    }
+
+    cargarContactos();
+  </script>
+</body>
+</html>
